@@ -2,6 +2,6 @@
 #ifndef V2D_STRUCT_H
 #define V2D_STRUCT_H
 struct v2d {
-	float u = 0, v = 0, w = 1;
+	float u=0, v=0, w=1;
 };
 #endif

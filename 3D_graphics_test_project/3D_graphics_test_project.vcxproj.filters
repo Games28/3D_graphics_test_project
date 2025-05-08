@@ -18,13 +18,16 @@
     <ClInclude Include="olcPixelGameEngine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="aabb3.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="engine_3d.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="line.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="mat4.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="vf3d.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="v2d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="mesh.h">
@@ -33,13 +36,10 @@
     <ClInclude Include="triangle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="line.h">
+    <ClInclude Include="v2d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="render.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="utils.h">
+    <ClInclude Include="v3d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -129,15 +129,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="aabb3.h" />
+    <ClInclude Include="engine_3d.h" />
     <ClInclude Include="line.h" />
     <ClInclude Include="mat4.h" />
     <ClInclude Include="mesh.h" />
     <ClInclude Include="olcPixelGameEngine.h" />
-    <ClInclude Include="render.h" />
     <ClInclude Include="triangle.h" />
-    <ClInclude Include="utils.h" />
     <ClInclude Include="v2d.h" />
-    <ClInclude Include="vf3d.h" />
+    <ClInclude Include="v3d.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

@@ -2,7 +2,6 @@
 #ifndef MESH_STRUCT_H
 #define MESH_STRUCT_H
 
-#include <list>
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -12,36 +11,35 @@
 #include "triangle.h"
 
 struct Mesh {
-	std::list<Triangle> triangles;
-	bool textured = true;
+	std::vector<Triangle> triangles;
 
-	//AABB3 getAABB() const {
-	//	AABB3 a;
-	//	for (const auto& t : triangles) {
-	//		for (int i = 0; i < 3; i++) {
-	//			a.fitToEnclose(t.p[i]);
-	//		}
-	//	}
-	//	return a;
-	//}
-	//
-	//void fitToBounds(const AABB3& box) {
-	//	vf3d box_ctr = box.getCenter();
-	//
-	//	AABB3 me = getAABB();
-	//	vf3d me_ctr = me.getCenter();
-	//
-	//	//which is the constraining dimension?
-	//	vf3d num = (box.max - box.min) / (me.max - me.min);
-	//	float scl = std::min(num.x, std::min(num.y, num.z));
-	//
-	//	//scale about box center.
-	//	for (auto& t : triangles) {
-	//		for (int i = 0; i < 3; i++) {
-	//			t.p[i] = box_ctr + scl * (t.p[i] - me_ctr);
-	//		}
-	//	}
-	//}
+	AABB3 getAABB() const {
+		AABB3 a;
+		for (const auto& t : triangles) {
+			for (int i = 0; i < 3; i++) {
+				a.fitToEnclose(t.p[i]);
+			}
+		}
+		return a;
+	}
+
+	void fitToBounds(const AABB3& box) {
+		vf3d box_ctr = box.getCenter();
+
+		AABB3 me = getAABB();
+		vf3d me_ctr = me.getCenter();
+
+		//which is the constraining dimension?
+		vf3d num = (box.max - box.min) / (me.max - me.min);
+		float scl = std::min(num.x, std::min(num.y, num.z));
+
+		//scale about box center.
+		for (auto& t : triangles) {
+			for (int i = 0; i < 3; i++) {
+				t.p[i] = box_ctr + scl * (t.p[i] - me_ctr);
+			}
+		}
+	}
 
 	//set triangle colors to their normals
 	void colorNormals() {
@@ -50,21 +48,6 @@ struct Mesh {
 			t.col.r = 128 + 127 * norm.x;
 			t.col.g = 128 + 127 * norm.y;
 			t.col.b = 128 + 127 * norm.z;
-		}
-	}
-
-	//these obj helpers will fundamentally change when
-	//i update triangles such that they store indexes
-	void saveToOBJ(const std::string& filename) {
-		std::ofstream file(filename);
-		if (file.fail()) throw std::runtime_error("invalid filename");
-
-		int j = 1;
-		for (const auto& t : triangles) {
-			for (int i = 0; i < 3; i++) {
-				file << "v " << t.p[i].x << ' ' << t.p[i].y << ' ' << t.p[i].z << '\n';
-			}
-			file << "f " << (j++) << ' ' << (j++) << ' ' << (j++) << '\n';
 		}
 	}
 
@@ -125,10 +108,8 @@ struct Mesh {
 			}
 		}
 
-		m.textured = !texs.empty();
-
 		file.close();
 		return m;
 	}
 };
-#endif//MESH_STRUCT_H
+#endif//MESH_STRUCT_H#pragma once
