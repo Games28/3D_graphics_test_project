@@ -1,54 +1,140 @@
 #pragma once
-#ifndef MESH_STRUCT_H
-#define MESH_STRUCT_H
+#ifndef MESH_CLASS_H
+#define MESH_CLASS_H
 
-#include <vector>
-#include <fstream>
-#include <sstream>
 
-#include <exception>
+bool rayIntersectAABB(const vf3d& orig, const vf3d& dir, const AABB3& box) {
+	const float epsilon = 1e-6f;
+	float tmin = -INFINITY;
+	float tmax = INFINITY;
 
-#include "triangle.h"
+	//x axis
+	if (std::abs(dir.x) > epsilon) {
+		float inv_d = 1 / dir.x;
+		float t1 = inv_d * (box.min.x - orig.x);
+		float t2 = inv_d * (box.max.x - orig.x);
+		if (t1 > t2) std::swap(t1, t2);
+		tmin = std::max(tmin, t1);
+		tmax = std::min(tmax, t2);
+	}
+	else if (orig.x<box.min.x || orig.x>box.max.x) return false;
+
+	//y axis
+	if (std::abs(dir.y) > epsilon) {
+		float inv_d = 1 / dir.y;
+		float t3 = inv_d * (box.min.y - orig.y);
+		float t4 = inv_d * (box.max.y - orig.y);
+		if (t3 > t4) std::swap(t3, t4);
+		tmin = std::max(tmin, t3);
+		tmax = std::min(tmax, t4);
+	}
+	else if (orig.y<box.min.y || orig.y>box.max.y) return false;
+
+	//z axis
+	if (std::abs(dir.z) > epsilon) {
+		float inv_d = 1 / dir.z;
+		float t5 = inv_d * (box.min.z - orig.z);
+		float t6 = inv_d * (box.max.z - orig.z);
+		if (t5 > t6) std::swap(t5, t6);
+		tmin = std::max(tmin, t5);
+		tmax = std::min(tmax, t6);
+	}
+	else if (orig.z<box.min.z || orig.z>box.max.z) return false;
+
+	if (tmax<0 || tmin>tmax) return false;
+
+	return true;
+}
+
+struct IndexTriangle {
+	int a = 0, b = 0, c = 0;
+};
 
 struct Mesh {
-	std::vector<Triangle> triangles;
+	std::vector<vf3d> vertices;
+	std::vector<IndexTriangle> index_tris;
+	vf3d rotation;
+	vf3d scale{ 1, 1, 1 };
+	vf3d translation;
+	Mat4 mat_world;//local->world
+	Mat4 mat_local;//world->local
+	std::vector<Triangle> tris;
+	int id = -1;
 
-	AABB3 getAABB() const {
-		AABB3 a;
-		for (const auto& t : triangles) {
-			for (int i = 0; i < 3; i++) {
-				a.fitToEnclose(t.p[i]);
-			}
+	void updateMatrices() {
+		//combine all transforms
+		Mat4 mat_rot_x = Mat4::makeRotX(rotation.x);
+		Mat4 mat_rot_y = Mat4::makeRotY(rotation.y);
+		Mat4 mat_rot_z = Mat4::makeRotZ(rotation.z);
+		Mat4 mat_rot = mat_rot_x * mat_rot_y * mat_rot_z;
+		Mat4 mat_scale = Mat4::makeScale(scale.x, scale.y, scale.z);
+		Mat4 mat_trans = Mat4::makeTrans(translation.x, translation.y, translation.z);
+		mat_world = mat_rot * mat_scale * mat_trans;
+		//matrix could be singular
+		mat_local = Mat4::identity();
+		try {
+			Mat4 local = Mat4::inverse(mat_world);
+			mat_local = local;
 		}
-		return a;
+		catch (const std::exception& e) {
+			std::cout << "  " << e.what() << '\n';
+		}
 	}
 
-	void fitToBounds(const AABB3& box) {
-		vf3d box_ctr = box.getCenter();
+	void updateTris() {
+		std::vector<vf3d> new_verts;
+		new_verts.reserve(vertices.size());
+		for (const auto& v : vertices) {
+			new_verts.push_back(v * mat_world);
+		}
 
-		AABB3 me = getAABB();
-		vf3d me_ctr = me.getCenter();
-
-		//which is the constraining dimension?
-		vf3d num = (box.max - box.min) / (me.max - me.min);
-		float scl = std::min(num.x, std::min(num.y, num.z));
-
-		//scale about box center.
-		for (auto& t : triangles) {
-			for (int i = 0; i < 3; i++) {
-				t.p[i] = box_ctr + scl * (t.p[i] - me_ctr);
-			}
+		tris.clear();
+		tris.reserve(index_tris.size());
+		for (const auto& it : index_tris) {
+			Triangle t{
+				new_verts[it.a],
+				new_verts[it.b],
+				new_verts[it.c]
+			};
+			t.id = id;
+			tris.push_back(t);
 		}
 	}
 
-	//set triangle colors to their normals
 	void colorNormals() {
-		for (auto& t : triangles) {
+		for (auto& t : tris) {
 			vf3d norm = t.getNorm();
 			t.col.r = 128 + 127 * norm.x;
 			t.col.g = 128 + 127 * norm.y;
 			t.col.b = 128 + 127 * norm.z;
 		}
+	}
+
+	AABB3 getAABB() const {
+		AABB3 box;
+		for (const auto& t : tris) {
+			for (int i = 0; i < 3; i++) {
+				box.fitToEnclose(t.p[i]);
+			}
+		}
+		return box;
+	}
+
+	float intersectRay(const vf3d& orig, const vf3d& dir) const {
+		if (!rayIntersectAABB(orig, dir, getAABB())) return false;
+
+		//sort by closest
+		float record = -1;
+		for (const auto& t : tris) {
+			float dist = segIntersectTri(orig, orig + dir, t);
+			if (dist > 0) {
+				if (record < 0 || dist < record) {
+					record = dist;
+				}
+			}
+		}
+
+		return record;
 	}
 
 	static Mesh loadFromOBJ(const std::string& filename) {
@@ -57,9 +143,7 @@ struct Mesh {
 		std::ifstream file(filename);
 		if (file.fail()) throw std::runtime_error("invalid filename");
 
-		std::vector<vf3d> verts;
-		std::vector<v2d> texs;
-
+		//parse file line by line
 		std::string line;
 		while (std::getline(file, line)) {
 			std::stringstream line_str(line);
@@ -67,16 +151,10 @@ struct Mesh {
 			if (type == "v") {
 				vf3d v;
 				line_str >> v.x >> v.y >> v.z;
-				verts.push_back({ v });
-			}
-			else if (type == "vt") {
-				v2d t;
-				line_str >> t.u >> t.v;
-				texs.push_back(t);
+				m.vertices.push_back(v);
 			}
 			else if (type == "f") {
 				std::vector<int> v_ixs;
-				std::vector<int> vt_ixs;
 
 				//parse v/t/n until fail
 				int num = 0;
@@ -84,32 +162,22 @@ struct Mesh {
 					std::stringstream vtn_str(vtn);
 					int v_ix;
 					if (vtn_str >> v_ix) v_ixs.push_back(v_ix - 1);
-					char junk; vtn_str >> junk;
-					int vt_ix;
-					if (vtn_str >> vt_ix) vt_ixs.push_back(vt_ix - 1);
 				}
 
 				//triangulate
-				bool to_texture = vt_ixs.size();
 				for (int i = 2; i < num; i++) {
-					Triangle t{
-						verts[v_ixs[0]],
-						verts[v_ixs[i - 1]],
-						verts[v_ixs[i]]
-					};
-					//whether to add texture info...
-					if (to_texture) {
-						t.t[0] = texs[vt_ixs[0]];
-						t.t[1] = texs[vt_ixs[i - 1]];
-						t.t[2] = texs[vt_ixs[i]];
-					}
-					m.triangles.push_back(t);
+					m.index_tris.push_back({
+						v_ixs[0],
+						v_ixs[i - 1],
+						v_ixs[i]
+						});
 				}
 			}
 		}
 
 		file.close();
+
 		return m;
 	}
 };
-#endif//MESH_STRUCT_H#pragma once
+#endif

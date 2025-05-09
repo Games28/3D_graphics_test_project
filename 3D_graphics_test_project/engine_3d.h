@@ -4,7 +4,7 @@
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
-
+#include "aabb3.h"
 #include "v3d.h"
 
 #include "mat4.h"

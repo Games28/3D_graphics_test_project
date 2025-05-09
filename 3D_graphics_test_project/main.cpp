@@ -11,12 +11,14 @@ struct Demo3D : cmn::Engine3D {
 	float cam_yaw=-3*Pi/4;
 	float cam_pitch=-Pi/6;
 	Mesh m;
+
 	//gets called at program start
 	bool user_create() override {
 		cam_pos={3, 3, 3};
 		light_pos=cam_pos;
 		
-		m.loadFromOBJ("teapot.txt");
+		m = Mesh::loadFromOBJ("teapot.txt");
+		
 		return true;
 	}
 
@@ -99,7 +101,7 @@ struct Demo3D : cmn::Engine3D {
 		
 		
 			tris_to_project.insert(tris_to_project.end(),
-				m.triangles.begin(), m.triangles.end()
+				m.tris.begin(), m.tris.end()
 			);
 		
 		return true;
