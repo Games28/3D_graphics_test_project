@@ -135,6 +135,7 @@
     <ClInclude Include="mat4.h" />
     <ClInclude Include="mesh.h" />
     <ClInclude Include="olcPixelGameEngine.h" />
+    <ClInclude Include="quat.h" />
     <ClInclude Include="triangle.h" />
     <ClInclude Include="v2d.h" />
     <ClInclude Include="v3d.h" />
