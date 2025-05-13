@@ -648,9 +648,9 @@ namespace cmn {
 				float t_step = 1.f / (bx - ax);
 				float t = 0;
 				for (int i = ax; i < bx; i++) {
-					tex_u = (1.0f - t) * tex_su + t * tex_eu;
-					tex_v = (1.0f - t) * tex_sv + t * tex_ev;
-					tex_w = (1.0f - t) * tex_sw + t * tex_ew;
+					tex_u = tex_su + t * (tex_eu - tex_su);
+					tex_v = tex_sv + t * (tex_ev - tex_sv);
+					tex_w = tex_sw + t * (tex_ew - tex_sw);
 					if (inRangeX(i) && inRangeY(j)) {
 						int k = i + ScreenWidth() * j;
 						float& depth = depth_buffer[k];
@@ -698,9 +698,9 @@ namespace cmn {
 			float t_step = 1.f / (bx - ax);
 			float t = 0;
 			for (int i = ax; i < bx; i++) {
-				tex_u = (1.0f - t) * tex_su + t * tex_eu;
-				tex_v = (1.0f - t) * tex_sv + t * tex_ev;
-				tex_w = (1.0f - t) * tex_sw + t * tex_ew;
+				tex_u = tex_su + t * (tex_eu - tex_su);
+				tex_v = tex_sv + t * (tex_ev - tex_sv);
+				tex_w = tex_sw + t * (tex_ew - tex_sw);
 				if (inRangeX(i) && inRangeY(j)) {
 					int k = i + ScreenWidth() * j;
 					float& depth = depth_buffer[k];
