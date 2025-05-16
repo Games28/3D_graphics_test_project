@@ -56,7 +56,7 @@ struct Demo3D : cmn::Engine3D {
 		
 		//load monkey and bunny
 		try {
-			testspr = new olc::Sprite("sand-texture.png");
+			testspr = new olc::Sprite("grass-texture.png");
 
 			Mesh a = Mesh::loadFromOBJ("cube.txt");
 			a.translation = { 0, 0, -5 };

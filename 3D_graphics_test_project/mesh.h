@@ -4,6 +4,11 @@
 
 #include "quat.h"
 
+#include <fstream>
+#include <sstream>
+#include <filesystem>
+namespace fs = std::filesystem;
+
 bool rayIntersectAABB(const vf3d& orig, const vf3d& dir, const AABB3& box) {
 	const float epsilon = 1e-6f;
 	float tmin = -INFINITY;
@@ -49,10 +54,13 @@ bool rayIntersectAABB(const vf3d& orig, const vf3d& dir, const AABB3& box) {
 
 struct IndexTriangle {
 	int a = 0, b = 0, c = 0;
+	int uv_a = 0, uv_b = 0, uv_c = 0;
 };
 
 struct Mesh {
-	std::vector<vf3d> vertices;
+	fs::path filename;
+	std::vector<vf3d> verts;
+	std::vector<v2d> tex_verts;
 	std::vector<IndexTriangle> index_tris;
 	Quat rotation;
 	vf3d scale{ 1, 1, 1 };
@@ -64,7 +72,7 @@ struct Mesh {
 
 	void updateTransforms() {
 		//combine all transforms
-		Mat4 mat_rot = quatToMat4(rotation);
+		Mat4 mat_rot = Quat::toMat4(rotation);
 		Mat4 mat_scale = Mat4::makeScale(scale.x, scale.y, scale.z);
 		Mat4 mat_trans = Mat4::makeTrans(translation.x, translation.y, translation.z);
 		mat_world = mat_scale * mat_rot * mat_trans;
@@ -81,8 +89,8 @@ struct Mesh {
 
 	void applyTransforms() {
 		std::vector<vf3d> new_verts;
-		new_verts.reserve(vertices.size());
-		for (const auto& v : vertices) {
+		new_verts.reserve(verts.size());
+		for (const auto& v : verts) {
 			new_verts.push_back(v * mat_world);
 		}
 
@@ -92,7 +100,10 @@ struct Mesh {
 			Triangle t{
 				new_verts[it.a],
 				new_verts[it.b],
-				new_verts[it.c]
+				new_verts[it.c],
+				tex_verts[it.uv_a],
+				tex_verts[it.uv_b],
+				tex_verts[it.uv_c]
 			};
 			t.id = id;
 			tris.push_back(t);
@@ -135,10 +146,11 @@ struct Mesh {
 		return record;
 	}
 
-	static Mesh loadFromOBJ(const std::string& filename) {
+	static Mesh loadFromOBJ(const fs::path& f) {
 		Mesh m;
+		m.filename = f;
 
-		std::ifstream file(filename);
+		std::ifstream file(m.filename);
 		if (file.fail()) throw std::runtime_error("invalid filename");
 
 		//parse file line by line
@@ -149,10 +161,16 @@ struct Mesh {
 			if (type == "v") {
 				vf3d v;
 				line_str >> v.x >> v.y >> v.z;
-				m.vertices.push_back(v);
+				m.verts.push_back(v);
+			}
+			else if (type == "vt") {
+				v2d vt;
+				line_str >> vt.u >> vt.v;
+				m.tex_verts.push_back(vt);
 			}
 			else if (type == "f") {
 				std::vector<int> v_ixs;
+				std::vector<int> vt_ixs;
 
 				//parse v/t/n until fail
 				int num = 0;
@@ -160,6 +178,9 @@ struct Mesh {
 					std::stringstream vtn_str(vtn);
 					int v_ix;
 					if (vtn_str >> v_ix) v_ixs.push_back(v_ix - 1);
+					char junk; vtn_str >> junk;
+					int vt_ix;
+					if (vtn_str >> vt_ix) vt_ixs.push_back(vt_ix - 1);
 				}
 
 				//triangulate
@@ -167,7 +188,10 @@ struct Mesh {
 					m.index_tris.push_back({
 						v_ixs[0],
 						v_ixs[i - 1],
-						v_ixs[i]
+						v_ixs[i],
+						vt_ixs[0],
+						vt_ixs[i - 1],
+						vt_ixs[i],
 						});
 				}
 			}
