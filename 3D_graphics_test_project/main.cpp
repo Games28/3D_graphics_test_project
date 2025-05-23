@@ -1,5 +1,6 @@
 #include "engine_3d.h"
 #include "mesh.h"
+#include "particle.h"
 constexpr float Pi=3.1415927f;
 
 struct Demo3D : cmn::Engine3D {
@@ -8,8 +9,8 @@ struct Demo3D : cmn::Engine3D {
 	}
 
 	//camera positioning
-	float cam_yaw=-3*Pi/4;
-	float cam_pitch=-Pi/5;
+	float cam_yaw= -1.62;
+	float cam_pitch= 0;
 
 	olc::vf2d mouse_pos;
 	olc::vf2d prev_mouse_pos;
@@ -29,6 +30,22 @@ struct Demo3D : cmn::Engine3D {
 
 	std::vector<Mesh> meshes;
 	olc::Sprite* testspr;
+
+	const AABB3 screne_bounds{ {-5,-5,-5},{5,5,5} };
+
+	//particle and physics
+	std::list<Particle> particles;
+	vf3d gravity{ 0, -1, 0 };
+
+
+	//player camera
+	bool player_camera = false;
+	vf3d player_pos;
+	vf3d player_vel;
+	const float player_rad = .1f;
+	const float player_height = .25f;
+	bool player_on_ground = false;
+	float player_airtime = 0;
 
 	Mesh m;
 
@@ -56,25 +73,42 @@ struct Demo3D : cmn::Engine3D {
 		
 		//load monkey and bunny
 		try {
-			testspr = new olc::Sprite("grass-texture.png");
+			//testspr = new olc::Sprite("./assets/textures/sandtexture.png");
 
-			Mesh a = Mesh::loadFromOBJ("cube.txt");
-			a.translation = { 0, 0, -5 };
+			Mesh a = Mesh::loadFromOBJ("./assets/models/desert.obj");
+			a.translation = { 0, 0, 0 };
 			a.scale = { 1.0f,1.0f,1.0f };
-			
+			a.sprite = new olc::Sprite("./assets/textures/sandtexture.png");
+
 			meshes.push_back(a);
 			//
-			//Mesh b = Mesh::loadFromOBJ("house1.obj");
-			//b.translation = { 0, -5, 0 };
-			//b.scale = { 0.25f,0.25f,0.25f };
-			//
-			//meshes.push_back(b);
-			//
-			//Mesh c = Mesh::loadFromOBJ("house2.obj");
-			//c.translation = { -5, -5, 0 };
-			//c.scale = { 0.25f,0.25f,0.25f };
-			//
-			//meshes.push_back(c);
+			Mesh b = Mesh::loadFromOBJ("./assets/models/tathouse1.obj");
+			b.translation = { 0, 0, +5 };
+			b.scale = { 0.25f,0.25f,0.25f };
+			b.sprite = new olc::Sprite("./assets/textures/Tbuilding.png");
+			
+			meshes.push_back(b);
+			
+			Mesh c = Mesh::loadFromOBJ("./assets/models/tathouse2.obj");
+			c.translation = { -5, 0, 0 };
+			c.scale = { 0.25f,0.25f,0.25f };
+			c.sprite = new olc::Sprite("./assets/textures/Tbuilding.png");
+			
+			meshes.push_back(c);
+
+			Mesh d = Mesh::loadFromOBJ("./assets/models/gunk.obj");
+			d.translation = { +5, + 0.8f, -4 };
+			d.scale = { 1.0f,1.0f,1.0f };
+			d.sprite = new olc::Sprite("./assets/textures/gonkbasecolor.png");
+
+			//meshes.push_back(d);
+
+			Mesh e = Mesh::loadFromOBJ("./assets/models/Speeder.obj");
+			e.translation = { +5, +0.8f, -7 };
+			e.scale = { 1.0f,1.0f,1.0f };
+			e.sprite = new olc::Sprite("./assets/textures/speederbike.png");
+
+			//meshes.push_back(e);
 		
 		}
 		catch (const std::exception& e) {
@@ -88,7 +122,9 @@ struct Demo3D : cmn::Engine3D {
 			m.id = lowestUniqueID();
 			m.applyTransforms();
 			m.colorNormals();
+			
 		}
+		
 		
 		
 		return true;
@@ -141,39 +177,107 @@ struct Demo3D : cmn::Engine3D {
 	//gets called every frame
 	bool user_update(float dt) override {
 		//look up, down
-		if(GetKey(olc::Key::UP).bHeld) cam_pitch+=dt;
-		if(GetKey(olc::Key::DOWN).bHeld) cam_pitch-=dt;
+		if (GetKey(olc::Key::UP).bHeld) cam_pitch += dt;
+		if (GetKey(olc::Key::DOWN).bHeld) cam_pitch -= dt;
 		//clamp cam_pitch values
-		if(cam_pitch>Pi/2) cam_pitch=Pi/2-.001f;
-		if(cam_pitch<-Pi/2) cam_pitch=.001f-Pi/2;
+		if (cam_pitch > Pi / 2) cam_pitch = Pi / 2 - .001f;
+		if (cam_pitch < -Pi / 2) cam_pitch = .001f - Pi / 2;
 
 		//look left, right
-		if(GetKey(olc::Key::LEFT).bHeld) cam_yaw-=dt;
-		if(GetKey(olc::Key::RIGHT).bHeld) cam_yaw+=dt;
+		if (GetKey(olc::Key::LEFT).bHeld) cam_yaw -= dt;
+		if (GetKey(olc::Key::RIGHT).bHeld) cam_yaw += dt;
 
 		//polar to cartesian
-		cam_dir=vf3d(
-			std::cosf(cam_yaw)*std::cosf(cam_pitch),
+		cam_dir = vf3d(
+			std::cosf(cam_yaw) * std::cosf(cam_pitch),
 			std::sinf(cam_pitch),
-			std::sinf(cam_yaw)*std::cosf(cam_pitch)
+			std::sinf(cam_yaw) * std::cosf(cam_pitch)
 		);
 
-		//move up, down
-		if(GetKey(olc::Key::SPACE).bHeld) cam_pos.y+=4.f*dt;
-		if(GetKey(olc::Key::SHIFT).bHeld) cam_pos.y-=4.f*dt;
+		//turn player_camera off or on
+		if (GetKey(olc::Key::Z).bPressed) {
+			if (!player_camera) {
+				player_pos = cam_pos - vf3d(0, player_height, 0);
+				player_vel = { 0, 0, 0 };
+			}
+			player_camera ^= true;
+		}
 
-		//move forward, backward
-		vf3d fb_dir(std::cosf(cam_yaw), 0, std::sinf(cam_yaw));
-		if(GetKey(olc::Key::W).bHeld) cam_pos+=5.f*dt*fb_dir;
-		if(GetKey(olc::Key::S).bHeld) cam_pos-=3.f*dt*fb_dir;
 
-		//move left, right
-		vf3d lr_dir(fb_dir.z, 0, -fb_dir.x);
-		if(GetKey(olc::Key::A).bHeld) cam_pos+=4.f*dt*lr_dir;
-		if(GetKey(olc::Key::D).bHeld) cam_pos-=4.f*dt*lr_dir;
+		if (player_camera)
+		{
+			//xz movement
+			vf3d movement;
+
+			//move forward, backward
+			vf3d fb_dir(std::cosf(cam_yaw), 0, std::sinf(cam_yaw));
+			if (GetKey(olc::Key::W).bHeld) movement += 5.f * dt * fb_dir;
+			if (GetKey(olc::Key::S).bHeld) movement -= 3.f * dt * fb_dir;
+
+			//move left, right
+			vf3d lr_dir(fb_dir.z, 0, -fb_dir.x);
+			if (GetKey(olc::Key::A).bHeld) movement += 4.f * dt * lr_dir;
+			if (GetKey(olc::Key::D).bHeld) movement -= 4.f * dt * lr_dir;
+
+			if (player_on_ground)
+			{
+				float record;
+				const Triangle* closest = nullptr;
+				for (int i = 0; i < meshes.size(); i++)
+				{
+					for (const auto& t : meshes[i].tris)
+					{
+						vf3d close_pt = t.getClosePt(player_pos);
+						vf3d sub = close_pt - player_pos;
+						float dist2 = sub.mag2();
+						if (!closest || dist2 < record)
+						{
+							record = dist2;
+							closest = &t;
+						}
+					}
+				}
+
+				if (closest)
+				{
+					vf3d norm = closest->getNorm();
+					movement -= norm * norm.dot(movement);
+				}
+			}
+
+			player_pos += movement;
+
+			//jumping
+			if (GetKey(olc::Key::SPACE).bPressed) {
+				//no double jump.
+				if (player_airtime < 0.1f) {
+					player_vel.y = 100 * dt;
+					player_on_ground = false;
+				}
+			}
+
+			//player pos is at feet, so offset camera to head
+			cam_pos = player_pos + vf3d(0, player_height, 0);
+		}
+		else
+		{
+			//move up, down
+			if (GetKey(olc::Key::SPACE).bHeld) cam_pos.y += 4.f * dt;
+			if (GetKey(olc::Key::SHIFT).bHeld) cam_pos.y -= 4.f * dt;
+
+			vf3d fb_dir(std::cosf(cam_yaw), 0, std::sinf(cam_yaw));
+			if (GetKey(olc::Key::W).bHeld) cam_pos += 5.f * dt * fb_dir;
+			if (GetKey(olc::Key::S).bHeld) cam_pos -= 3.f * dt * fb_dir;
+
+			//move left, right
+			vf3d lr_dir(fb_dir.z, 0, -fb_dir.x);
+			if (GetKey(olc::Key::A).bHeld) cam_pos += 4.f * dt * lr_dir;
+			if (GetKey(olc::Key::D).bHeld) cam_pos -= 4.f * dt * lr_dir;
+		}
+
 
 		//set light pos
-		if(GetKey(olc::Key::L).bHeld) light_pos=cam_pos;
+		if (GetKey(olc::Key::L).bHeld) light_pos = cam_pos;
 
 		prev_mouse_pos = mouse_pos;
 		mouse_pos = GetMousePos();
@@ -186,8 +290,8 @@ struct Demo3D : cmn::Engine3D {
 		{
 			invVP = Mat4::inverse(mat_view * mat_proj);
 		}
-		catch(const std::exception& e)
-		{ 
+		catch (const std::exception& e)
+		{
 			invVP_avail = false;
 		}
 
@@ -204,9 +308,43 @@ struct Demo3D : cmn::Engine3D {
 			mouse_dir = (world - cam_pos).norm();
 		}
 
+		//player physics
+		if (player_camera)
+		{
+			//player kinematics
+			if (!player_on_ground)
+			{
+				player_vel += gravity * dt;
+			}
 
-		//camera targeting test
+			player_pos += player_vel * dt;
+
+			//airtime
+			player_airtime += dt;
+
+			//player collision
+			player_on_ground = false;
+			for (int i = 0; i < meshes.size(); i++)
+			{
+				for (const auto& t : meshes[i].tris) {
+					vf3d close_pt = t.getClosePt(player_pos);
+					vf3d sub = player_pos - close_pt;
+					float dist2 = sub.mag2();
+
+
+					if (dist2 < player_rad * player_rad) {
+						float fix = player_rad - std::sqrtf(dist2);
+						player_pos += fix * t.getNorm();
+						player_vel = { 0, 0, 0 };
+						player_on_ground = true;
+						player_airtime = 0;
+					}
+				}
+			}
+		}
 		
+		
+
 
 		if (GetKey(olc::C).bPressed)
 		{
@@ -271,24 +409,24 @@ struct Demo3D : cmn::Engine3D {
 		}
 
 		const auto rotate_action = GetMouse(olc::Mouse::RIGHT);
-		if (rotate_action.bPressed) 
+		if (rotate_action.bPressed)
 		{
 			//get closest mesh
 			float record = -1;
 			rot_mesh = nullptr;
-			for (auto& m : meshes) 
+			for (auto& m : meshes)
 			{
 				float dist = m.intersectRay(cam_pos, mouse_dir);
-				if (dist > 0) 
+				if (dist > 0)
 				{
-					if (record < 0 || dist < record) 
+					if (record < 0 || dist < record)
 					{
 						record = dist;
 						rot_mesh = &m;
 					}
 				}
 			}
-			if (rot_mesh) 
+			if (rot_mesh)
 			{
 				rot_start = mouse_pos;
 			}
@@ -315,7 +453,7 @@ struct Demo3D : cmn::Engine3D {
 			vf3d curr_world = curr_clip * invVP;
 			curr_world /= curr_world.w;
 			vf3d curr_pt = segIntersectPlane(cam_pos, curr_world, trans_plane, cam_dir);
-		
+
 			//apply translation delta and update
 			held_obj->translation += curr_pt - prev_pt;
 			held_obj->updateTransforms();
@@ -324,7 +462,7 @@ struct Demo3D : cmn::Engine3D {
 		}
 
 		//update translated mesh
-		if (trans_mesh && invVP_avail) 
+		if (trans_mesh && invVP_avail)
 		{
 			//project screen ray onto translation plane
 			float prev_ndc_x = 1 - 2 * prev_mouse_pos.x / ScreenWidth();
@@ -348,10 +486,10 @@ struct Demo3D : cmn::Engine3D {
 		}
 
 		//update rotated mesh
-		if (rot_mesh && invVP_avail) 
+		if (rot_mesh && invVP_avail)
 		{
 			olc::vf2d b = mouse_pos - rot_start;
-			if (b.mag() > 20) 
+			if (b.mag() > 20)
 			{
 				olc::vf2d a = prev_mouse_pos - rot_start;
 				float dot = a.x * b.x + a.y * b.y;
@@ -366,6 +504,8 @@ struct Demo3D : cmn::Engine3D {
 		}
 
 
+
+		
 
 
 		return true;
@@ -396,7 +536,10 @@ struct Demo3D : cmn::Engine3D {
 		Clear(olc::Pixel(90, 90, 90));
 
 		//draw the 3d stuff
-		render3D(testspr);
+		for (int i = 0; i < meshes.size(); i++)
+		{
+			render3D(meshes[i].sprite);
+		}
 
 		//rot mesh edge detection
 		if (rot_mesh) {

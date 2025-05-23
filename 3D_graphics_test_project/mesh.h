@@ -54,7 +54,7 @@ bool rayIntersectAABB(const vf3d& orig, const vf3d& dir, const AABB3& box) {
 
 struct IndexTriangle {
 	int a = 0, b = 0, c = 0;
-	int uv_a = 0, uv_b = 0, uv_c = 0;
+	int uv_a = -1, uv_b = -1, uv_c = -1;
 };
 
 struct Mesh {
@@ -69,6 +69,9 @@ struct Mesh {
 	Mat4 mat_local;//world->local
 	std::vector<Triangle> tris;
 	int id = -1;
+
+	//added sprite
+	olc::Sprite* sprite = nullptr;
 
 	void updateTransforms() {
 		//combine all transforms
@@ -100,11 +103,11 @@ struct Mesh {
 			Triangle t{
 				new_verts[it.a],
 				new_verts[it.b],
-				new_verts[it.c],
-				tex_verts[it.uv_a],
-				tex_verts[it.uv_b],
-				tex_verts[it.uv_c]
+				new_verts[it.c]
 			};
+			if (it.uv_a >= 0) t.t[0] = tex_verts[it.uv_a];
+			if (it.uv_b >= 0) t.t[1] = tex_verts[it.uv_b];
+			if (it.uv_c >= 0) t.t[2] = tex_verts[it.uv_c];
 			t.id = id;
 			tris.push_back(t);
 		}
@@ -112,10 +115,9 @@ struct Mesh {
 
 	void colorNormals() {
 		for (auto& t : tris) {
-			vf3d norm = t.getNorm();
-			t.col.r = 128 + 127 * norm.x;
-			t.col.g = 128 + 127 * norm.y;
-			t.col.b = 128 + 127 * norm.z;
+			vf3d norm = t.getNorm(), rgb = .5f + .5f * norm;
+			float l = std::max(rgb.x, std::max(rgb.y, rgb.z));
+			t.col = olc::PixelF(rgb.x / l, rgb.y / l, rgb.z / l);
 		}
 	}
 
@@ -128,6 +130,25 @@ struct Mesh {
 		}
 		return box;
 	}
+
+	void fitToBounds(const AABB3& box) {
+		vf3d box_ctr = box.getCenter();
+
+		AABB3 me = getAABB();
+		vf3d me_ctr = me.getCenter();
+
+		//which is the constraining dimension?
+		vf3d num = (box.max - box.min) / (me.max - me.min);
+		float scl = std::min(num.x, std::min(num.y, num.z));
+
+		//scale about box center.
+		for (auto& t : tris) {
+			for (int i = 0; i < 3; i++) {
+				t.p[i] = box_ctr + scl * (t.p[i] - me_ctr);
+			}
+		}
+	}
+
 
 	float intersectRay(const vf3d& orig, const vf3d& dir) const {
 		if (!rayIntersectAABB(orig, dir, getAABB())) return -1;
@@ -146,9 +167,9 @@ struct Mesh {
 		return record;
 	}
 
-	static Mesh loadFromOBJ(const fs::path& f) {
+	static Mesh loadFromOBJ(const fs::path& filename) {
 		Mesh m;
-		m.filename = f;
+		m.filename = filename;
 
 		std::ifstream file(m.filename);
 		if (file.fail()) throw std::runtime_error("invalid filename");
@@ -169,37 +190,77 @@ struct Mesh {
 				m.tex_verts.push_back(vt);
 			}
 			else if (type == "f") {
+				//this works with n-gons.
 				std::vector<int> v_ixs;
 				std::vector<int> vt_ixs;
 
 				//parse v/t/n until fail
-				int num = 0;
-				for (std::string vtn; line_str >> vtn; num++) {
+				bool use_tex = true;
+				for (std::string vtn; line_str >> vtn;) {
 					std::stringstream vtn_str(vtn);
+
 					int v_ix;
-					if (vtn_str >> v_ix) v_ixs.push_back(v_ix - 1);
-					char junk; vtn_str >> junk;
-					int vt_ix;
-					if (vtn_str >> vt_ix) vt_ixs.push_back(vt_ix - 1);
+					vtn_str >> v_ix;
+					v_ixs.push_back(v_ix - 1);
+
+					//load texture info
+					char junk;
+					if (vtn_str >> junk) {
+						int vt_ix;
+						vtn_str >> vt_ix;
+						vt_ixs.push_back(vt_ix - 1);
+					}
+					else use_tex = false;
 				}
 
-				//triangulate
-				for (int i = 2; i < num; i++) {
-					m.index_tris.push_back({
+				//triangulate face
+				for (int i = 2; i < v_ixs.size(); i++) {
+					IndexTriangle it{
 						v_ixs[0],
 						v_ixs[i - 1],
-						v_ixs[i],
-						vt_ixs[0],
-						vt_ixs[i - 1],
-						vt_ixs[i],
-						});
+						v_ixs[i]
+					};
+					if (use_tex) {
+						it.uv_a = vt_ixs[0];
+						it.uv_b = vt_ixs[i - 1];
+						it.uv_c = vt_ixs[i];
+					}
+					m.index_tris.push_back(it);
 				}
 			}
 		}
 
-		file.close();
+		m.updateTransforms();
+		m.applyTransforms();
 
 		return m;
+	}
+
+	//save mesh with applied transforms
+	bool saveToOBJ(const fs::path& filename) const {
+		std::ofstream file(filename);
+		if (file.fail()) return false;
+
+		//apply transforms & print
+		for (const auto& v : verts) {
+			vf3d nv = v * mat_world;
+			file << "v " << nv.x << ' ' << nv.y << ' ' << nv.z << '\n';
+		}
+
+		//print tex verts
+		for (const auto& vt : tex_verts) {
+			file << "vt " << vt.u << ' ' << vt.v << '\n';
+		}
+
+		//print faces v/t/n
+		for (const auto& it : index_tris) {
+			file << "f " <<
+				(1 + it.a) << '/' << (1 + it.uv_a) << ' ' <<
+				(1 + it.b) << '/' << (1 + it.uv_b) << ' ' <<
+				(1 + it.c) << '/' << (1 + it.uv_c) << '\n';
+		}
+
+		return true;
 	}
 };
 #endif

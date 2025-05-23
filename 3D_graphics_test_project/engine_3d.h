@@ -7,6 +7,7 @@
 #include "aabb3.h"
 #include "v3d.h"
 
+
 #include "mat4.h"
 
 //vector-matrix multiplication
@@ -105,25 +106,30 @@ namespace cmn {
 			}
 
 			//rasterize all triangles
-			//for(const auto& t:tris_to_draw) {
-			//	FillDepthTriangle(
-			//		t.p[0].x, t.p[0].y, t.t[0].w, t.t[0].w, t.t[0].w,
-			//		t.p[1].x, t.p[1].y, t.t[1].w, t.t[1].w, t.t[1].w,
-			//		t.p[2].x, t.p[2].y, t.t[2].w, t.t[2].w, t.t[2].w,
-			//		t.col, t.id
-			//	);
-			//}
+			if (sprite == nullptr)
+			{
 
-			//texture all triangles test
-			for (const auto& t : tris_to_draw) {
-			       TexturedDepthTriangle(
-					t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
-					t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
-					t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w,
-					sprite, t.id
-				);
+				for (const auto& t : tris_to_draw) {
+					FillDepthTriangle(
+						t.p[0].x, t.p[0].y, t.t[0].w, t.t[0].w, t.t[0].w,
+						t.p[1].x, t.p[1].y, t.t[1].w, t.t[1].w, t.t[1].w,
+						t.p[2].x, t.p[2].y, t.t[2].w, t.t[2].w, t.t[2].w,
+						t.col, t.id
+					);
+				}
 			}
-
+			else
+			{
+				//texture all triangles test
+				for (const auto& t : tris_to_draw) {
+					TexturedDepthTriangle(
+						t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
+						t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
+						t.p[2].x, t.p[2].y, t.t[2].u, t.t[2].v, t.t[2].w,
+						sprite, t.id
+					);
+				}
+			}
 			//rasterize all lines
 			for(const auto& l:lines_to_draw) {
 				DrawDepthLine(
