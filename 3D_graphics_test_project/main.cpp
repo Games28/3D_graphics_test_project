@@ -12,6 +12,8 @@ struct Demo3D : cmn::Engine3D {
 	float cam_yaw= -1.62;
 	float cam_pitch= 0;
 
+	
+
 	olc::vf2d mouse_pos;
 	olc::vf2d prev_mouse_pos;
 	bool show_bounds = false;
@@ -29,6 +31,7 @@ struct Demo3D : cmn::Engine3D {
 	olc::vf2d rot_start;
 
 	std::vector<Mesh> meshes;
+	std::vector<Mesh> sprites;
 	olc::Sprite* testspr;
 
 	const AABB3 screne_bounds{ {-5,-5,-5},{5,5,5} };
@@ -80,21 +83,21 @@ struct Demo3D : cmn::Engine3D {
 			a.scale = { 1.0f,1.0f,1.0f };
 			a.sprite = new olc::Sprite("./assets/textures/sandtexture.png");
 
-			meshes.push_back(a);
+			//meshes.push_back(a);
 			//
 			Mesh b = Mesh::loadFromOBJ("./assets/models/tathouse1.obj");
 			b.translation = { 0, 0, +5 };
 			b.scale = { 0.25f,0.25f,0.25f };
 			b.sprite = new olc::Sprite("./assets/textures/Tbuilding.png");
 			
-			meshes.push_back(b);
+			//meshes.push_back(b);
 			
 			Mesh c = Mesh::loadFromOBJ("./assets/models/tathouse2.obj");
 			c.translation = { -5, 0, 0 };
 			c.scale = { 0.25f,0.25f,0.25f };
 			c.sprite = new olc::Sprite("./assets/textures/Tbuilding.png");
 			
-			meshes.push_back(c);
+			//meshes.push_back(c);
 
 			Mesh d = Mesh::loadFromOBJ("./assets/models/gunk.obj");
 			d.translation = { +5, + 0.8f, -4 };
@@ -109,12 +112,56 @@ struct Demo3D : cmn::Engine3D {
 			e.sprite = new olc::Sprite("./assets/textures/speederbike.png");
 
 			//meshes.push_back(e);
+
+			//3d sprites
+			Particle p1;
+			p1.pos = { +5, +0.8f, -4 };
+			p1.sprite = new olc::Sprite("./assets/textures/mario.png");
+			particles.push_back(p1);
+
+			Particle p2;
+			p2.pos = { +5, +0.8f, -7 };
+			p2.sprite = new olc::Sprite("./assets/textures/mario.png");
+			particles.push_back(p2);
+
 		
 		}
 		catch (const std::exception& e) {
 			std::cout << e.what() << '\n';
 			return false;
 		}
+
+		//sprite setup
+		for (const auto& p : particles)
+		{
+			const float sz = .25f;
+			//billboarded to point at camera
+			vf3d norm = (p.pos - cam_pos).norm();
+			vf3d up(0, 1, 0);
+			vf3d rgt = norm.cross(up).norm();
+			up = rgt.cross(norm);
+
+			//vertex positioning
+			vf3d tl = p.pos + sz / 2 * rgt + sz / 2 * up;
+			vf3d tr = p.pos + sz / 2 * rgt - sz / 2 * up;
+			vf3d bl = p.pos - sz / 2 * rgt + sz / 2 * up;
+			vf3d br = p.pos - sz / 2 * rgt - sz / 2 * up;
+			
+			Mesh m;
+			m.sprite = p.sprite;
+			//tesselation
+			Triangle f1;
+			f1.p[0] = tl; f1.p[1] = br; f1.p[2] = tr;
+			
+			m.tris.push_back(f1);
+			Triangle f2;
+			f2.p[0] = tl; f2.p[1] = bl; f2.p[2] = br;
+			m.tris.push_back(f2);
+
+			sprites.push_back(m);
+			
+		}
+
 
 		//update things
 		for (auto& m : meshes) {
@@ -125,7 +172,13 @@ struct Demo3D : cmn::Engine3D {
 			
 		}
 		
-		
+		//for (auto& m : sprites) {
+		//	m.updateTransforms();
+		//	m.id = lowestUniqueID();
+		//	m.applyTransforms();
+		//	m.colorNormals();
+		//
+		//}
 		
 		return true;
 	}
@@ -275,6 +328,8 @@ struct Demo3D : cmn::Engine3D {
 			if (GetKey(olc::Key::D).bHeld) cam_pos -= 4.f * dt * lr_dir;
 		}
 
+
+		
 
 		//set light pos
 		if (GetKey(olc::Key::L).bHeld) light_pos = cam_pos;
@@ -538,45 +593,51 @@ struct Demo3D : cmn::Engine3D {
 		//draw the 3d stuff
 		for (int i = 0; i < meshes.size(); i++)
 		{
-			render3D(meshes[i].sprite);
+			//render3D(meshes[i].sprite);
+		}
+
+		//draw flat sprites
+		for (int i = 0; i < sprites.size(); i++)
+		{
+			render3D(sprites[i].sprite);
 		}
 
 		//rot mesh edge detection
-		if (rot_mesh) {
-			int id = rot_mesh->id;
-			for (int i = 1; i < ScreenWidth() - 1; i++) {
-				for (int j = 1; j < ScreenHeight() - 1; j++) {
-					bool curr = id_buffer[i + ScreenWidth() * j] == id;
-					bool lft = id_buffer[i - 1 + ScreenWidth() * j] == id;
-					bool rgt = id_buffer[i + 1 + ScreenWidth() * j] == id;
-					bool top = id_buffer[i + ScreenWidth() * (j - 1)] == id;
-					bool btm = id_buffer[i + ScreenWidth() * (j + 1)] == id;
-					if (curr != lft || curr != rgt || curr != top || curr != btm) {
-						Draw(i, j, olc::CYAN);
-					}
-				}
-			}
-		}
+		//if (rot_mesh) {
+		//	int id = rot_mesh->id;
+		//	for (int i = 1; i < ScreenWidth() - 1; i++) {
+		//		for (int j = 1; j < ScreenHeight() - 1; j++) {
+		//			bool curr = id_buffer[i + ScreenWidth() * j] == id;
+		//			bool lft = id_buffer[i - 1 + ScreenWidth() * j] == id;
+		//			bool rgt = id_buffer[i + 1 + ScreenWidth() * j] == id;
+		//			bool top = id_buffer[i + ScreenWidth() * (j - 1)] == id;
+		//			bool btm = id_buffer[i + ScreenWidth() * (j + 1)] == id;
+		//			if (curr != lft || curr != rgt || curr != top || curr != btm) {
+		//				Draw(i, j, olc::CYAN);
+		//			}
+		//		}
+		//	}
+		//}
 
 		//trans mesh edge detection
-		if (trans_mesh) {
-			int id = trans_mesh->id;
-			for (int i = 1; i < ScreenWidth() - 1; i++) {
-				for (int j = 1; j < ScreenHeight() - 1; j++) {
-					bool curr = id_buffer[i + ScreenWidth() * j] == id;
-					bool lft = id_buffer[i - 1 + ScreenWidth() * j] == id;
-					bool rgt = id_buffer[i + 1 + ScreenWidth() * j] == id;
-					bool top = id_buffer[i + ScreenWidth() * (j - 1)] == id;
-					bool btm = id_buffer[i + ScreenWidth() * (j + 1)] == id;
-					if (curr != lft || curr != rgt || curr != top || curr != btm) {
-						Draw(i, j, olc::CYAN);
-					}
-				}
-			}
-		}
+		//if (trans_mesh) {
+		//	int id = trans_mesh->id;
+		//	for (int i = 1; i < ScreenWidth() - 1; i++) {
+		//		for (int j = 1; j < ScreenHeight() - 1; j++) {
+		//			bool curr = id_buffer[i + ScreenWidth() * j] == id;
+		//			bool lft = id_buffer[i - 1 + ScreenWidth() * j] == id;
+		//			bool rgt = id_buffer[i + 1 + ScreenWidth() * j] == id;
+		//			bool top = id_buffer[i + ScreenWidth() * (j - 1)] == id;
+		//			bool btm = id_buffer[i + ScreenWidth() * (j + 1)] == id;
+		//			if (curr != lft || curr != rgt || curr != top || curr != btm) {
+		//				Draw(i, j, olc::CYAN);
+		//			}
+		//		}
+		//	}
+		//}
 
 		//if (held_obj) {
-		//	int id = rot_mesh->id;
+		//	int id = held_obj->id;
 		//	for (int i = 1; i < ScreenWidth() - 1; i++) {
 		//		for (int j = 1; j < ScreenHeight() - 1; j++) {
 		//			bool curr = id_buffer[i + ScreenWidth() * j] == id;

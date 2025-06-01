@@ -4,6 +4,7 @@
 struct Particle {
 	vf3d pos, oldpos, acc;
 	olc::Pixel col = olc::WHITE;
+	olc::Sprite* sprite = nullptr;
 
 	Particle() {}
 
