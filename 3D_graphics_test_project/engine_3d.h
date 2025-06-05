@@ -94,6 +94,14 @@ namespace cmn {
 
 		virtual bool user_render()=0;
 
+		void drawTexturedTriangle(int x1, int y1, float u1, float v1, float w1,
+			int x2, int y2, float u2, float v2, float w2,
+			int x3, int y3, float u3, float v3, float w3,
+			olc::Sprite* spr, int id)
+		{
+			TexturedDepthTriangle(x1, y1, u1, v1, w1, x2, y2, u2, v2, w2, x3, y3, u3, v3, w3, spr, id);
+		}
+
 		void render3D(olc::Sprite* sprite) {
 			//reset depth buffer
 			for(int i=0; i<ScreenWidth()*ScreenHeight(); i++) {

@@ -1,6 +1,7 @@
 #include "engine_3d.h"
 #include "mesh.h"
 #include "particle.h"
+#include "sprites.h"
 constexpr float Pi=3.1415927f;
 
 struct Demo3D : cmn::Engine3D {
@@ -31,7 +32,7 @@ struct Demo3D : cmn::Engine3D {
 	olc::vf2d rot_start;
 
 	std::vector<Mesh> meshes;
-	std::vector<Mesh> sprites;
+	std::vector<Sprite> sprites;
 	olc::Sprite* testspr;
 
 	const AABB3 screne_bounds{ {-5,-5,-5},{5,5,5} };
@@ -54,6 +55,7 @@ struct Demo3D : cmn::Engine3D {
 
 	int lowestUniqueID() const
 	{
+		
 		for (int id = 0; ; id++)
 		{
 			bool unique = true;
@@ -83,21 +85,21 @@ struct Demo3D : cmn::Engine3D {
 			a.scale = { 1.0f,1.0f,1.0f };
 			a.sprite = new olc::Sprite("./assets/textures/sandtexture.png");
 
-			//meshes.push_back(a);
+			meshes.push_back(a);
 			//
 			Mesh b = Mesh::loadFromOBJ("./assets/models/tathouse1.obj");
 			b.translation = { 0, 0, +5 };
 			b.scale = { 0.25f,0.25f,0.25f };
 			b.sprite = new olc::Sprite("./assets/textures/Tbuilding.png");
 			
-			//meshes.push_back(b);
+			meshes.push_back(b);
 			
 			Mesh c = Mesh::loadFromOBJ("./assets/models/tathouse2.obj");
 			c.translation = { -5, 0, 0 };
 			c.scale = { 0.25f,0.25f,0.25f };
 			c.sprite = new olc::Sprite("./assets/textures/Tbuilding.png");
 			
-			//meshes.push_back(c);
+			meshes.push_back(c);
 
 			Mesh d = Mesh::loadFromOBJ("./assets/models/gunk.obj");
 			d.translation = { +5, + 0.8f, -4 };
@@ -114,16 +116,16 @@ struct Demo3D : cmn::Engine3D {
 			//meshes.push_back(e);
 
 			//3d sprites
-			Particle p1;
-			p1.pos = { +5, +0.8f, -4 };
-			p1.sprite = new olc::Sprite("./assets/textures/mario.png");
-			particles.push_back(p1);
+			Sprite p1;
+			p1.addSprite(new olc::Sprite("./assets/textures/mario.png"));
+			p1.addPosition({ +5, +0.8f, -4 });
+            sprites.push_back(p1);
 
-			Particle p2;
-			p2.pos = { +5, +0.8f, -7 };
-			p2.sprite = new olc::Sprite("./assets/textures/mario.png");
-			particles.push_back(p2);
-
+			Sprite p2;
+			p1.addSprite(new olc::Sprite("./assets/textures/mario.png"));
+			p1.addPosition({ +5, +0.8f, -7 });
+			sprites.push_back(p2);
+			
 		
 		}
 		catch (const std::exception& e) {
@@ -131,36 +133,7 @@ struct Demo3D : cmn::Engine3D {
 			return false;
 		}
 
-		//sprite setup
-		for (const auto& p : particles)
-		{
-			const float sz = .25f;
-			//billboarded to point at camera
-			vf3d norm = (p.pos - cam_pos).norm();
-			vf3d up(0, 1, 0);
-			vf3d rgt = norm.cross(up).norm();
-			up = rgt.cross(norm);
-
-			//vertex positioning
-			vf3d tl = p.pos + sz / 2 * rgt + sz / 2 * up;
-			vf3d tr = p.pos + sz / 2 * rgt - sz / 2 * up;
-			vf3d bl = p.pos - sz / 2 * rgt + sz / 2 * up;
-			vf3d br = p.pos - sz / 2 * rgt - sz / 2 * up;
-			
-			Mesh m;
-			m.sprite = p.sprite;
-			//tesselation
-			Triangle f1;
-			f1.p[0] = tl; f1.p[1] = br; f1.p[2] = tr;
-			
-			m.tris.push_back(f1);
-			Triangle f2;
-			f2.p[0] = tl; f2.p[1] = bl; f2.p[2] = br;
-			m.tris.push_back(f2);
-
-			sprites.push_back(m);
-			
-		}
+		
 
 
 		//update things
@@ -172,13 +145,7 @@ struct Demo3D : cmn::Engine3D {
 			
 		}
 		
-		//for (auto& m : sprites) {
-		//	m.updateTransforms();
-		//	m.id = lowestUniqueID();
-		//	m.applyTransforms();
-		//	m.colorNormals();
-		//
-		//}
+	
 		
 		return true;
 	}
@@ -580,7 +547,12 @@ struct Demo3D : cmn::Engine3D {
 			}
 		}
 
-		return true;
+
+
+		for (auto& s : sprites)
+		{
+			s.update(cam_pos);
+		}
 		
 		return true;
 	}
@@ -593,14 +565,13 @@ struct Demo3D : cmn::Engine3D {
 		//draw the 3d stuff
 		for (int i = 0; i < meshes.size(); i++)
 		{
-			//render3D(meshes[i].sprite);
+			render3D(meshes[i].sprite);
 		}
-
-		//draw flat sprites
-		for (int i = 0; i < sprites.size(); i++)
+		for (auto s : sprites)
 		{
-			render3D(sprites[i].sprite);
+			s.rendering(this);
 		}
+		
 
 		//rot mesh edge detection
 		//if (rot_mesh) {
