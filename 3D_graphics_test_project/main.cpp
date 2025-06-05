@@ -118,12 +118,12 @@ struct Demo3D : cmn::Engine3D {
 			//3d sprites
 			Sprite p1;
 			p1.addSprite(new olc::Sprite("./assets/textures/mario.png"));
-			p1.addPosition({ +5, +0.8f, -4 });
+			p1.setup(1,{ +5, +0.8f, -4 });
             sprites.push_back(p1);
 
 			Sprite p2;
 			p1.addSprite(new olc::Sprite("./assets/textures/mario.png"));
-			p1.addPosition({ +5, +0.8f, -7 });
+			p1.setup(2,{ +5, +0.8f, -7 });
 			sprites.push_back(p2);
 			
 		
@@ -561,6 +561,7 @@ struct Demo3D : cmn::Engine3D {
 	bool user_render() override {
 		//grey background
 		Clear(olc::Pixel(90, 90, 90));
+
 
 		//draw the 3d stuff
 		for (int i = 0; i < meshes.size(); i++)

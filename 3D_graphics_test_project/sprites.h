@@ -11,8 +11,9 @@ public:
 		texture = sprite;
 	}
 
-	void addPosition(vf3d pos)
+	void setup(int id, vf3d pos)
 	{
+		this->id = id;
 		this->pos = pos;
 	}
 	void update(vf3d camera_pos)
@@ -46,7 +47,7 @@ public:
 	void rendering(cmn::Engine3D* ptr)
 	{
 		
-		for (auto& t : tris_to_draw) {
+		for (const auto& t : tris_to_draw) {
 			ptr->drawTexturedTriangle(
 				t.p[0].x, t.p[0].y, t.t[0].u, t.t[0].v, t.t[0].w,
 				t.p[1].x, t.p[1].y, t.t[1].u, t.t[1].v, t.t[1].w,
